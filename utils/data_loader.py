@@ -2,37 +2,55 @@
 Data loading utilities.
 """
 from datasets import load_dataset
-from typing import List, Dict, Tuple
+from typing import List, Dict, Tuple, Optional
 
-def load_toy_dataset() -> Tuple[List[str], Dict[str, List[str]], List[Dict]]:
-    """Load and prepare AG News dataset from Hugging Face"""
-    print("Loading AG News dataset...")
+def load_toy_dataset(
+    dataset_name: str = "ag_news",
+    num_documents: int = 1000,
+    num_queries_per_category: int = 20,
+    category_mapping: Optional[Dict[int, str]] = None,
+    text_field: str = "text",
+    label_field: str = "label"
+) -> Tuple[List[str], Dict[str, List[str]], List[Dict]]:
+    """Load and prepare a dataset from Hugging Face"""
+    print(f"Loading {dataset_name} dataset...")
     
     # Load AG News dataset
-    dataset = load_dataset("ag_news")
+    dataset = load_dataset(dataset_name)
     
     # Get the training split for documents
     train_data = dataset['train']
     
-    # Convert to lists and sample first 1000 examples for documents
+    # Convert to lists and sample first N examples for documents
     documents = []
     doc_labels = [] # Renamed from labels to avoid confusion with test set labels
     
-    # Take first 1000 examples for documents
-    for i in range(min(1000, len(train_data))):
+    # Take first num_documents examples for documents
+    for i in range(min(num_documents, len(train_data))):
         example = train_data[i]
-        documents.append(example['text'])
-        doc_labels.append(example['label'])
+        documents.append(example[text_field])
+        doc_labels.append(example[label_field])
     
     print(f"Loaded {len(documents)} documents for indexing")
     
     # Category mapping
-    categories = ['World', 'Sports', 'Business', 'Sci/Tech']
-    
+    if category_mapping:
+        categories_list = sorted(list(set(category_mapping.values())))
+    else:
+        # Attempt to infer categories if not provided, assuming labels are integers from 0 to N-1
+        unique_labels = sorted(list(set(doc_labels)))
+        if all(isinstance(lbl, int) for lbl in unique_labels):
+            categories_list = [f"Category {lbl}" for lbl in unique_labels]
+            category_mapping = {lbl: f"Category {lbl}" for lbl in unique_labels}
+            print(f"Inferred categories: {categories_list}")
+        else:
+            # Fallback if labels are not simple integers or no mapping provided
+            raise ValueError("Category mapping must be provided if labels are not integers or cannot be inferred.")
+
     # Create metadata for the indexed documents
     metadata = []
     for i, label_id in enumerate(doc_labels):
-        category = categories[label_id]
+        category = category_mapping.get(label_id, f"Unknown Label {label_id}")
         metadata.append({
             'id': i, # This id refers to the index in the 'documents' list
             'label': label_id,
@@ -40,38 +58,37 @@ def load_toy_dataset() -> Tuple[List[str], Dict[str, List[str]], List[Dict]]:
         })
     
     # Load the test split for test queries
-    print("Loading AG News test split for queries...")
+    print(f"Loading {dataset_name} test split for queries...")
     test_data = dataset['test']
     
     # Create test_queries from the test split
-    # We can take a sample from the test data to form queries
-    # For instance, take up to N queries per category from the test set
+    test_queries = {category: [] for category in categories_list}
     
-    test_queries = {category: [] for category in categories}
-    # Let's aim for a similar number of queries as before, e.g., 20 per category
-    # We'll iterate through the test set and collect texts until we have enough queries per category
-    
-    # To make it more robust, let's collect a certain number of test examples
-    # and then distribute them. Or, more simply, iterate and fill.
-    
-    # For simplicity, let's take the first few examples from the test set as queries,
-    # ensuring they are distributed among categories.
-    # We can limit the number of queries per category.
-    
-    num_queries_per_category = 20 # Desired number of queries per category
     # Temp storage for queries from test set
-    raw_test_samples = {label_id: [] for label_id in range(len(categories))}
+    # Ensure raw_test_samples keys cover all possible label_ids present in the test set
+    # that are also in our defined category_mapping
+    
+    # Get all unique label ids from the provided or inferred category_mapping
+    valid_label_ids = set(category_mapping.keys())
+    
+    raw_test_samples = {label_id: [] for label_id in valid_label_ids}
 
     # Collect samples from the test set
     for example in test_data:
-        label_id = example['label']
-        if len(raw_test_samples[label_id]) < num_queries_per_category:
-            raw_test_samples[label_id].append(example['text'])
+        label_id = example[label_field]
+        if label_id in raw_test_samples and len(raw_test_samples[label_id]) < num_queries_per_category:
+            raw_test_samples[label_id].append(example[text_field])
 
     # Populate test_queries
     for label_id, texts in raw_test_samples.items():
-        category_name = categories[label_id]
-        test_queries[category_name].extend(texts)
+        category_name = category_mapping.get(label_id)
+        if category_name: # Ensure category_name is valid
+            if category_name not in test_queries:
+                test_queries[category_name] = [] # Initialize if somehow missed
+            test_queries[category_name].extend(texts)
+        else:
+            print(f"Warning: Label ID {label_id} from test set not found in category_mapping. Skipping these queries.")
+
 
     # Ensure all categories have some queries, even if fewer than num_queries_per_category
     # if the test set is small or skewed for those categories.
@@ -81,9 +98,9 @@ def load_toy_dataset() -> Tuple[List[str], Dict[str, List[str]], List[Dict]]:
     for cat, qs in test_queries.items():
         print(f"  {cat}: {len(qs)} queries")
 
-    print(f"Successfully loaded AG News dataset with {len(documents)} documents for indexing.")
-    print(f"Generated test queries from the AG News test split.")
-    print(f"Categories: {categories}")
+    print(f"Successfully loaded {dataset_name} dataset with {len(documents)} documents for indexing.")
+    print(f"Generated test queries from the {dataset_name} test split.")
+    print(f"Categories: {categories_list}")
     
     # Show category distribution for the indexed documents
     category_counts = {}

@@ -81,6 +81,7 @@ import warnings
 from models import BERTRetriever
 from evaluation import RetrievalEvaluator
 from utils import load_toy_dataset
+import wandb # Add wandb import
 
 warnings.filterwarnings('ignore')
 
@@ -125,6 +126,9 @@ def demo_similarity_metrics():
 
 def run_comprehensive_comparison():
     """Run comprehensive comparison of all similarity metrics"""
+    # Initialize wandb run
+    wandb.init(project="bert-retrieval-comparison", name="comprehensive_metrics_run")
+
     # Load dataset
     documents, test_queries, metadata = load_toy_dataset()
     
@@ -138,17 +142,39 @@ def run_comprehensive_comparison():
     # Run comparison with debug enabled
     results_df = evaluator.compare_similarity_metrics(retriever, test_queries, k_values=[1, 3, 5, 10], debug=True)
     
+    # Log results_df to wandb as a table
+    wandb.log({{"results_table": wandb.Table(dataframe=results_df)}})
+    
     # Analyze results
     evaluator.analyze_metric_comparison(results_df)
     
     return results_df
 
+# Example of using the parameterized load_toy_dataset function
 if __name__ == "__main__":
-    print("BERT-based Text Retrieval System - Similarity Metrics Comparison")
-    print("=" * 80)
-    
-    # Run demonstration
-    # demo_similarity_metrics()
-    
-    # Run comprehensive comparison
-    results_df = run_comprehensive_comparison()
+    # Load AG News (default)
+    documents, test_queries, metadata = load_toy_dataset()
+    print(f"Loaded {len(documents)} documents and {sum(len(q) for q in test_queries.values())} queries from AG News.")
+
+    # Example: Load a different dataset (e.g., "imdb")
+    # You might need to specify text_field, label_field, and category_mapping for other datasets
+    # For IMDB, label 0 is negative, 1 is positive.
+    # documents_imdb, test_queries_imdb, metadata_imdb = load_toy_dataset(
+    #     dataset_name="imdb",
+    #     num_documents=500,
+    #     num_queries_per_category=10,
+    #     text_field="text",
+    #     label_field="label",
+    #     category_mapping={0: "Negative Review", 1: "Positive Review"}
+    # )
+    # print(f"Loaded {len(documents_imdb)} documents and {sum(len(q) for q in test_queries_imdb.values())} queries from IMDB.")
+
+    # Initialize retriever and evaluator (assuming these are defined elsewhere)
+    # retriever = BERTRetriever(documents, metadata)
+    # evaluator = RetrievalEvaluator()
+    # results_df = evaluator.compare_similarity_metrics(retriever, test_queries)
+    # print(results_df)
+    pass # Placeholder for further script logic
+
+    # Finish wandb run
+    wandb.finish()
