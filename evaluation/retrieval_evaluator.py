@@ -4,6 +4,7 @@ Retrieval evaluator module.
 import pandas as pd # Added import
 import matplotlib.pyplot as plt # Added import
 import math # Added import
+import os # Added import for os.makedirs
 from typing import List, Dict, Any
 
 class RetrievalEvaluator:
@@ -174,6 +175,12 @@ class RetrievalEvaluator:
             print("No results to analyze.")
             return
 
+        # Create a directory to save figures if it doesn't exist
+        figures_dir = "figures"
+        if not os.path.exists(figures_dir):
+            os.makedirs(figures_dir)
+        print(f"Saving figures to ./{figures_dir}/")
+
         # Overall average performance per metric
         print("\\nOverall Average Performance Across All Queries and Categories:")
         avg_metrics_cols = [f'{m}@{k}' for k in k_values for m in ['precision', 'recall', 'f1', 'ndcg']] + \
@@ -209,7 +216,10 @@ class RetrievalEvaluator:
                     plt.xticks(rotation=45, ha='right')
                     plt.grid(axis='y', linestyle='--')
                     plt.tight_layout()
-                    plt.show()
+                    figure_path = os.path.join(figures_dir, f"avg_{metric_col.replace('@', '_k')}_by_similarity_metric.png")
+                    plt.savefig(figure_path)
+                    plt.close() # Close the plot to free memory
+                    print(f"Saved: {figure_path}")
                 else:
                     print(f"Warning: Metric column '{metric_col}' not found in summary for plotting.")
 
@@ -225,7 +235,10 @@ class RetrievalEvaluator:
                 plt.legend(title='Category')
                 plt.grid(axis='y', linestyle='--')
                 plt.tight_layout()
-                plt.show()
+                figure_path = os.path.join(figures_dir, "avg_map_by_category_and_similarity_metric.png")
+                plt.savefig(figure_path)
+                plt.close() # Close the plot to free memory
+                print(f"Saved: {figure_path}")
             else:
                 print("Warning: MAP by category data is empty, skipping plot.")
         else:
