@@ -74,6 +74,8 @@ class BERTRetriever:
         # query_embedding: (1, D), self.embeddings: (N, D)
         # torch.cdist computes pairwise distances. Result for (1,D) vs (N,D) is (1,N).
         distances = torch.cdist(query_embedding, self.embeddings)[0]  # Get 1D tensor of size N
+        # We use negative distance because higher similarity should be better (like cosine similarity).
+        # Alternatively, similarity = 1 / (1 + distance)
         return -distances
     
     def calculate_yat_similarity(self, query_embedding: torch.Tensor, epsilon: float = 1e-8) -> torch.Tensor:
@@ -94,6 +96,8 @@ class BERTRetriever:
         """Calculate Manhattan similarity (inverse of L1 distance) using PyTorch"""
         # query_embedding (1,D) is broadcast against self.embeddings (N,D)
         manhattan_distances = torch.sum(torch.abs(query_embedding - self.embeddings), dim=1) # Shape (N)
+        # We use negative distance because higher similarity should be better.
+        # Alternatively, similarity = 1 / (1 + distance)
         return -manhattan_distances
     
     def calculate_dot_product_similarity(self, query_embedding: torch.Tensor) -> torch.Tensor:

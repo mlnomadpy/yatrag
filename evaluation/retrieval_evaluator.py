@@ -5,6 +5,7 @@ import pandas as pd # Added import
 import matplotlib.pyplot as plt # Added import
 import math # Added import
 import os # Added import for os.makedirs
+import time # Added import for latency measurement
 from typing import List, Dict, Any
 
 class RetrievalEvaluator:
@@ -83,7 +84,10 @@ class RetrievalEvaluator:
         category_to_label = {cat: i for i, cat in enumerate(self.categories)}
         target_label = category_to_label[target_category]
 
+        start_time = time.time()
         results = retriever.search(query, top_k=max(k_values), similarity_metric=similarity_metric)
+        end_time = time.time()
+        latency = end_time - start_time
 
         retrieved_labels = []
         for doc, score, idx in results:
@@ -114,6 +118,9 @@ class RetrievalEvaluator:
         metrics['map'] = self.calculate_map(retrieved_labels, target_label)
         metrics['mrr'] = self.calculate_mrr(retrieved_labels, target_label)
         metrics['success_rate'] = 1.0 if any(label == target_label for label in retrieved_labels) else 0.0
+        metrics['latency'] = latency # Add latency
+        if 'precision@1' in metrics:
+            metrics['accuracy'] = metrics['precision@1'] # Accuracy is Precision@1
 
         return metrics
 
@@ -184,7 +191,7 @@ class RetrievalEvaluator:
         # Overall average performance per metric
         print("\\nOverall Average Performance Across All Queries and Categories:")
         avg_metrics_cols = [f'{m}@{k}' for k in k_values for m in ['precision', 'recall', 'f1', 'ndcg']] + \
-                           ['map', 'mrr', 'success_rate']
+                           ['map', 'mrr', 'success_rate', 'accuracy', 'latency'] # Added latency
 
         # Ensure all expected metric columns exist for aggregation, fill with NaN if not (though groupby().mean() handles this)
         for metric_col in avg_metrics_cols:
@@ -202,7 +209,9 @@ class RetrievalEvaluator:
             'NDCG': [f'ndcg@{k}' for k in k_values],
             'MAP': ['map'],
             'MRR': ['mrr'],
-            'Success Rate': ['success_rate']
+            'Success Rate': ['success_rate'],
+            'Accuracy': ['accuracy'],
+            'Latency': ['latency'] # Added latency for plotting
         }
 
         for main_metric_name, specific_metric_cols in plot_metrics.items():
